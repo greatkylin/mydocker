@@ -1,4 +1,4 @@
-FROM php:7.3
+FROM php:7.3-fpm
 
 LABEL maintainer="linyb <yb_lin@163.com>"
 
@@ -82,7 +82,7 @@ RUN cd /root && \
 
 COPY ./php.ini /usr/local/etc/php/php.ini
 
-EXPOSE 1215
+EXPOSE 1215 9000
 
 # set China timezone
 RUN /bin/cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \

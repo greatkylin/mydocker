@@ -20,6 +20,8 @@ RUN apt-get update && \
     libmcrypt-dev \
     && rm -rf /var/lib/apt/lists/*
 
+RUN docker-php-ext-install -j$(nproc) mysqli
+
 # Install the PHP pdo_mysql extention
 RUN docker-php-ext-install pdo_mysql \
     # Install the PHP pdo_pgsql extention

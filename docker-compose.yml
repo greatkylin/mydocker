@@ -1,303 +1,373 @@
 version: "3"
 
 networks:
-    frontend:
-        driver: bridge
-    backend:
-        driver: bridge
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
 
 services:
-    nginx:
-        build: ./nginx
-        volumes:
-            - ./nginx/conf.d:/etc/nginx/conf.d/
-            - ${NGINX_HOST_LOG_PATH}:/var/log/nginx/
-            - ${NGINX_SITES_PATH}:/var/www
-        ports:
-            - "80:80"
-            - "443:443"
-        networks:
-            - frontend
-            - backend
-        links:
-            - phpfpm
-            - swoole
+  ### Nginx ##############################################
+  nginx:
+    build: ./nginx
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d/
+      - ${NGINX_HOST_LOG_PATH}:/var/log/nginx/
+      - ${NGINX_SITES_PATH}:/var/www
+    ports:
+      - "${NGINX_HOST_HTTP_PORT}:80"
+      - "${NGINX_HOST_HTTPS_PORT}:443"
+    networks:
+      - frontend
+      - backend
+    links:
+      - phpfpm
+      - swoole
 
-    mysql:
-        build:
-            context: ./mysql
-            args:
-                - MYSQL_VERSION=${MYSQL_VERSION}
-        environment:
-            - MYSQL_DATABASE=${MYSQL_DATABASE}
-            - MYSQL_USER=${MYSQL_USER}
-            - MYSQL_PASSWORD=${MYSQL_PASSWORD}
-            - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-            - TZ=${WORKSPACE_TIMEZONE}
-        volumes:
-            - ${DATA_PATH_HOST}/mysql:/var/lib/mysql
-        ports:
-            - "${MYSQL_PORT}:3306"
-        networks:
-            - backend
+  ### MySql ##############################################
+  mysql:
+    build:
+      context: ./mysql
+      args:
+        - MYSQL_VERSION=${MYSQL_VERSION}
+    environment:
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - TZ=${WORKSPACE_TIMEZONE}
+    volumes:
+      - ${DATA_PATH_HOST}/mysql:/var/lib/mysql
+    ports:
+      - "${MYSQL_PORT}:3306"
+    networks:
+      - backend
 
-    redis-master:
-        build: ./redis
-        volumes:
-            - ./redis/redis.conf:/etc/redis.conf
-            - ${DATA_PATH_HOST}/redis_master:/data
-        ports:
-            - "${REDIS_PORT}:6379"
-        networks:
-            - backend
+  ### Redis ##############################################
+  redis-master:
+    build: ./redis
+    volumes:
+      - ./redis/redis.conf:/etc/redis.conf
+      - ${DATA_PATH_HOST}/redis_master:/data
+    ports:
+      - "${REDIS_PORT}:6379"
+    networks:
+      - backend
 
-    # node:
-    #     build: ./node
-    #     working_dir: ${NODE_SITES_PATH}
-    #     environment:
-    #         - NODE_ENV=production
-    #     volumes:
-    #         - ${NODE_SITES_PATH}:${NODE_SITES_PATH}
-    #     ports:
-    #         - "${NODE_PORT}:3000"
-    #     command: "npm start"
-    #     networks:
-    #         - backend
+  ### MongoDB ##############################################
+  mongo:
+    build: ./mongo
+    ports:
+      - "${MONGODB_PORT}:27017"
+    volumes:
+      - ${DATA_PATH_HOST}/mongo/db:/data/db
+      - ${DATA_PATH_HOST}/mongo/configdb:/data/configdb
+    networks:
+      - backend
 
-    swoole:
-        build: ./swoole
-        ports:
-            - "1215:1215"
-        working_dir: /var/www
-        volumes:
-            - ${NGINX_SITES_PATH}:/var/www
-            - ./swoole/php.d:/etc/php.d/
-        stdin_open: true
-        tty: true
-        networks:
-            - backend
-        links:
-            - mysql
-            - redis-master
-    #     command: php artisan swoole:http start
+  ### RabbitMQ #############################################
+  rabbitmq:
+    build: ./rabbitmq
+    ports:
+      - "${RABBITMQ_NODE_HOST_PORT}:5672"
+      - "${RABBITMQ_MANAGEMENT_HTTP_HOST_PORT}:15672"
+      - "${RABBITMQ_MANAGEMENT_HTTPS_HOST_PORT}:15671"
+    privileged: true
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+    volumes:
+      - ${DATA_PATH_HOST}/rabbitmq:/var/lib/rabbitmq
+    networks:
+      - backend
 
-    # kafka:
-    #     image: 'bitnami/kafka:latest'
-    #     ports:
-    #         - '9092:9092'
-    #     depends_on:
-    #         - zoo1
-    #         - zoo2
-    #         - zoo3
-    #     environment:
-    #         - KAFKA_ZOOKEEPER_CONNECT=zoo1:2181,zoo2:2181,zoo3:2181
-    #         - ALLOW_PLAINTEXT_LISTENER=yes
-    #         - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092
-    #         - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://10.0.91.18:9092
-    #     volumes:
-    #         - /home/data/kafka:/bitnami/kafka
+#  ### Noed #############################################
+#  node:
+#    build: ./node
+#    working_dir: ${NODE_SITES_PATH}
+#    environment:
+#      - NODE_ENV=production
+#    volumes:
+#      - ${NODE_SITES_PATH}:${NODE_SITES_PATH}
+#    ports:
+#      - "${NODE_PORT}:3000"
+#    command: "npm start"
+#    networks:
+#      - backend
 
-    # zoo1:
-    #     build: ./zookeeper
-    #     restart: always
-    #     hostname: zoo1
-    #     ports:
-    #         - 2181:2181
-    #     environment:
-    #         ZOO_MY_ID: 1
-    #         ZOO_SERVERS: server.1=0.0.0.0:2888:3888 server.2=zoo2:2888:3888 server.3=zoo3:2888:3888
-    #     volumes:
-    #         - /home/data/zoo1:/data
+  ### phpfpm ##############################################
+  phpfpm:
+    tty: true
+    build:
+      context: ./php
+      args:
+        - PHP_VERSION=${PHP_VERSION}
+        - INSTALL_COMPOSER=${PHP_FPM_INSTALL_COMPOSER}
+        - INSTALL_SOAP=${PHP_FPM_INSTALL_SOAP}
+        - INSTALL_ZIP_ARCHIVE=${PHP_FPM_INSTALL_ZIP_ARCHIVE}
+        - INSTALL_PHPREDIS=${PHP_FPM_INSTALL_PHPREDIS}
+        - INSTALL_OPCACHE=${PHP_FPM_INSTALL_OPCACHE}
+    ports:
+      - 9010:9000
+    volumes:
+      - ./php/php.ini:/usr/local/etc/php/php.ini
+      - ${NGINX_SITES_PATH}:/var/www
+    networks:
+      - backend
+    links:
+      - mysql
+      - redis-master
 
-    # zoo2:
-    #     build: ./zookeeper
-    #     restart: always
-    #     hostname: zoo2
-    #     ports:
-    #         - 2182:2181
-    #     environment:
-    #         ZOO_MY_ID: 2
-    #         ZOO_SERVERS: server.1=zoo1:2888:3888 server.2=0.0.0.0:2888:3888 server.3=zoo3:2888:3888
-    #     volumes:
-    #         - /home/data/zoo2:/data
+  ### Swoole ##############################################
+  swoole:
+    build: ./swoole
+    ports:
+      - 1215:1215
+      - 9020:9000
+    working_dir: /var/www
+    volumes:
+      - ${NGINX_SITES_PATH}:/var/www
+      - ./swoole/php.d:/etc/php.d/
+    stdin_open: true
+    tty: true
+    networks:
+      - backend
+    links:
+      - mysql
+      - redis-master
+#    command: php artisan swoole:http start
 
-    # zoo3:
-    #     build: ./zookeeper
-    #     restart: always
-    #     hostname: zoo3
-    #     ports:
-    #         - 2183:2181
-    #     environment:
-    #         ZOO_MY_ID: 3
-    #         ZOO_SERVERS: server.1=zoo1:2888:3888 server.2=zoo2:2888:3888 server.3=0.0.0.0:2888:3888
-    #     volumes:
-    #         - /home/data/zoo3:/data
+#  ### Kafka ##############################################
+#  kafka:
+#    image: 'bitnami/kafka:latest'
+#    ports:
+#      - '9092:9092'
+#    depends_on:
+#      - zoo1
+#      - zoo2
+#      - zoo3
+#    environment:
+#      - KAFKA_ZOOKEEPER_CONNECT=zoo1:2181,zoo2:2181,zoo3:2181
+#      - ALLOW_PLAINTEXT_LISTENER=yes
+#      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092
+#      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://10.0.91.18:9092
+#    volumes:
+#      - /home/data/kafka:/bitnami/kafka
+#
+#  ### zoo ##############################################
+#  zoo1:
+#    build: ./zookeeper
+#    restart: always
+#    hostname: zoo1
+#    ports:
+#      - 2181:2181
+#    environment:
+#      ZOO_MY_ID: 1
+#      ZOO_SERVERS: server.1=0.0.0.0:2888:3888 server.2=zoo2:2888:3888 server.3=zoo3:2888:3888
+#    volumes:
+#      - /home/data/zoo1:/data
+#  zoo2:
+#    build: ./zookeeper
+#    restart: always
+#    hostname: zoo2
+#    ports:
+#      - 2182:2181
+#    environment:
+#      ZOO_MY_ID: 2
+#      ZOO_SERVERS: server.1=zoo1:2888:3888 server.2=0.0.0.0:2888:3888 server.3=zoo3:2888:3888
+#    volumes:
+#      - /home/data/zoo2:/data
+#  zoo3:
+#    build: ./zookeeper
+#    restart: always
+#    hostname: zoo3
+#    ports:
+#      - 2183:2181
+#    environment:
+#      ZOO_MY_ID: 3
+#      ZOO_SERVERS: server.1=zoo1:2888:3888 server.2=zoo2:2888:3888 server.3=0.0.0.0:2888:3888
+#    volumes:
+#      - /home/data/zoo3:/data
 
-    phpfpm:
-        tty: true
-        build:
-            context: ./php
-            args:
-                - PHP_VERSION=${PHP_VERSION}
-                - INSTALL_COMPOSER=${PHP_FPM_INSTALL_COMPOSER}
-                - INSTALL_SOAP=${PHP_FPM_INSTALL_SOAP}
-                - INSTALL_ZIP_ARCHIVE=${PHP_FPM_INSTALL_ZIP_ARCHIVE}
-                - INSTALL_PHPREDIS=${PHP_FPM_INSTALL_PHPREDIS}
-                - INSTALL_OPCACHE=${PHP_FPM_INSTALL_OPCACHE}
-        ports:
-            - 9010:9000
-        volumes:
-            - ./php/php.ini:/usr/local/etc/php/php.ini
-            - ${NGINX_SITES_PATH}:/var/www
-        networks:
-            - backend
-        links:
-            - mysql
-            - redis-master
-
-    # phpfpm_release:
-    #     tty: true
-    #     build:
-    #         context: ./php_release
-    #     ports:
-    #         - 9001:9000
-    #     volumes:
-    #         - ./php_release/php.ini:/usr/local/etc/php/php.ini
-    #         - ../jellyfish:/var/www
-    #     networks:
-    #         - backend
-
-    # es-master:
-    #     build: ./es-master
-    #     container_name: es-master
-    #     restart: always
-    #     volumes:
-    #         - ./es-master/data:/usr/share/elasticsearch/data:rw
-    #         - ./es-master/conf/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
-    #     ports:
-    #         - "9200:9200"
-    #         - "9300:9300"
-    #     environment:
-    #         - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    #         - "ES_CLUSTERNAME=elasticsearch"
-    #     command: elasticsearch
-    #     networks:
-    #         - backend
-    # sudo sysctl -w vm.max_map_count=655360   增加虚拟内存大小
-    # es-node1:
-    #     build: ./es-master
-    #     container_name: es-node1
-    #     restart: always
-    #     volumes:
-    #         - ./es-node1/data:/usr/share/elasticsearch/data:rw
-    #         - ./es-node1/conf/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
-    #     ports:
-    #         - "9201:9200"
-    #         - "9301:9300"
-    #     environment:
-    #         - bootstrap.memory_lock=true
-    #         - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    #         - ES_CLUSTERNAME=elasticsearch
-    #     command: elasticsearch
-    #     networks:
-    #         - backend
-    # es-node2:
-    #     build: ./es-master
-    #     container_name: es-node2
-    #     restart: always
-    #     volumes:
-    #         - ./es-node2/data:/usr/share/elasticsearch/data:rw
-    #         - ./es-node2/conf/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
-    #     ports:
-    #         - "9202:9200"
-    #         - "9302:9300"
-    #     environment:
-    #         - bootstrap.memory_lock=true
-    #         - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    #         - ES_CLUSTERNAME=elasticsearch
-    #     command: elasticsearch
-    #     networks:
-    #         - backend
-    # kibana:
-    #     image: kibana:6.6.0
-    #     hostname: kibana
-    #     container_name: kibana
-    #     environment:
-    #         SERVER_NAME: kibana
-    #         ELASTICSEARCH_URL: http://120.78.142.46:9200
-    #     ports:
-    #         - 5601:5601
-    #     networks:
-    #         - backend
-    # es-head:
-    #     image: tobias74/elasticsearch-head:6
-    #     container_name: es-head
-    #     restart: always
-    #     volumes:
-    #        - ./es-head/conf/Gruntfile.js:/usr/src/app/Gruntfile.js
-    #        - ./es-head/conf/app.js:/usr/src/app/_site/app.js
-    #     ports:
-    #         - "9100:9100"
-    #     networks:
-    #         - backend
-    # filebeat:
-    #     image: prima/filebeat
-    #     hostname: filebeat
-    #     container_name: filebeat
-    #     restart: always
-    #     volumes:
-    #         - ./filebeat/conf/filebeat.yml:/filebeat.yml
-    #         - ./filebeat/data:/data
-    #         - /var/lib/docker/containers:/var/lib/docker/containers
-    #     networks:
-    #         - backend
-    # logstash:
-    #     image: "docker.elastic.co/logstash/logstash:6.6.0"
-    #     hostname: logstash
-    #     # command: /usr/share/logstash/bin/logstash -f /usr/share/logstash/config/conf.d/logstash-syslog.conf
-    #     ports:
-    #         - "5044:5044"
-    #         - "9600:9600"
-    #     volumes:
-    #         - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
-    #         - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
-    #         - ./logstash/log/:/var/log/logstash
-    #     environment:
-    #         LS_JAVA_OPTS: "-Xmx256m -Xms256m"
-    #     networks:
-    #         - backend
-
-    apollo-quick-start:
-        image: nobodyiam/apollo-quick-start
-        container_name: apollo-quick-start
-        depends_on:
-            - apollo-db
-        ports:
-            - "8080:8080"
-            - "8070:8070"
-        links:
-            - apollo-db
-
-    apollo-db:
-        image: mysql:5.7
-        container_name: apollo-db
-        environment:
-            TZ: Asia/Shanghai
-            MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
-        depends_on:
-            - apollo-dbdata
-        ports:
-            - "13306:3306"
-        volumes:
-            - ./apollo/sql:/docker-entrypoint-initdb.d
-            - apollo-dbdata:/var/lib/mysql
-
-    apollo-dbdata:
-        image: alpine:latest
-        container_name: apollo-dbdata
-        volumes:
-            - apollo-dbdata:/var/lib/mysql
-
-volumes:
-    apollo-dbdata:
-  
+#  es-master:
+#    build: ./es-master
+#    container_name: es-master
+#    restart: always
+#    volumes:
+#      - ./es-master/data:/usr/share/elasticsearch/data:rw
+#      - ./es-master/conf/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+#    ports:
+#      - "9200:9200"
+#      - "9300:9300"
+#    environment:
+#      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+#      - "ES_CLUSTERNAME=elasticsearch"
+#    command: elasticsearch
+#    networks:
+#      - backend
+#  #    sudo sysctl -w vm.max_map_count=655360   增加虚拟内存大小
+#  es-node1:
+#    build: ./es-master
+#    container_name: es-node1
+#    restart: always
+#    volumes:
+#      - ./es-node1/data:/usr/share/elasticsearch/data:rw
+#      - ./es-node1/conf/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+#    ports:
+#      - "9201:9200"
+#      - "9301:9300"
+#    environment:
+#      - bootstrap.memory_lock=true
+#      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+#      - ES_CLUSTERNAME=elasticsearch
+#    command: elasticsearch
+#    networks:
+#      - backend
+#  es-node2:
+#    build: ./es-master
+#    container_name: es-node2
+#    restart: always
+#    volumes:
+#      - ./es-node2/data:/usr/share/elasticsearch/data:rw
+#      - ./es-node2/conf/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+#    ports:
+#      - "9202:9200"
+#      - "9302:9300"
+#    environment:
+#      - bootstrap.memory_lock=true
+#      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+#      - ES_CLUSTERNAME=elasticsearch
+#    command: elasticsearch
+#    networks:
+#      - backend
+#  kibana:
+#    image: kibana:6.6.0
+#    hostname: kibana
+#    container_name: kibana
+#    environment:
+#      SERVER_NAME: kibana
+#      ELASTICSEARCH_URL: http://120.78.142.46:9200
+#    ports:
+#      - 5601:5601
+#    networks:
+#      - backend
+#    es-head:
+#      image: tobias74/elasticsearch-head:6
+#      container_name: es-head
+#      restart: always
+#      volumes:
+#        - ./es-head/conf/Gruntfile.js:/usr/src/app/Gruntfile.js
+#        - ./es-head/conf/app.js:/usr/src/app/_site/app.js
+#      ports:
+#        - "9100:9100"
+#      networks:
+#        - backend
+#  filebeat:
+#    image: prima/filebeat
+#    hostname: filebeat
+#    container_name: filebeat
+#    restart: always
+#    volumes:
+#      - ./filebeat/conf/filebeat.yml:/filebeat.yml
+#      - ./filebeat/data:/data
+#      - /var/lib/docker/containers:/var/lib/docker/containers
+#    networks:
+#      - backend
+#  logstash:
+#    image: "docker.elastic.co/logstash/logstash:6.6.0"
+#    hostname: logstash
+#    # command: /usr/share/logstash/bin/logstash -f /usr/share/logstash/config/conf.d/logstash-syslog.conf
+#    ports:
+#      - "5044:5044"
+#      - "9600:9600"
+#    volumes:
+#      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+#      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+#      - ./logstash/log/:/var/log/logstash
+#    environment:
+#      LS_JAVA_OPTS: "-Xmx256m -Xms256m"
+#    networks:
+#      - backend
+#
+#  rabbitmq1:
+#    image: rabbitmq:management
+#    container_name: rabbitmq1
+#    restart: always
+#    hostname: rabbitmq1
+#    ports:
+#      - "5672:5672"
+#      - "15672:15672"
+#    volumes:
+#      - /opt/docker_volume/rabbitmq/rabbitmq1/data:/var/lib/rabbitmq
+#    environment:
+#      - RABBITMQ_DEFAULT_USER=root
+#      - RABBITMQ_DEFAULT_PASS=root
+#      - RABBITMQ_ERLANG_COOKIE=CURIOAPPLICATION
+#      - RABBITMQ_NODENAME:rabbitmq1
+#    networks:
+#      - rabbitmq
+#  rabbitmq2:
+#    image: rabbitmq:management
+#    container_name: rabbitmq2
+#    restart: always
+#    hostname: rabbitmq2
+#    ports:
+#      - "5673:5672"
+#    volumes:
+#      - /opt/docker_volume/rabbitmq/rabbitmq2/data:/var/lib/rabbitmq
+#    environment:
+#      - RABBITMQ_ERLANG_COOKIE=CURIOAPPLICATION
+#      - RABBITMQ_NODENAME:rabbitmq2
+#      - RABBITMQ_CLUSTERED=true
+#      - RABBITMQ_CLUSTER_WITH=rabbit@rabbitmq1
+#      - RABBITMQ_RAM_NODE=true
+#    networks:
+#      - rabbitmq
+#  rabbitmq3:
+#    image: rabbitmq:management
+#    container_name: rabbitmq3
+#    restart: always
+#    hostname: rabbitmq3
+#    ports:
+#      - "5674:5672"
+#    volumes:
+#      - /opt/docker_volume/rabbitmq/rabbitmq3/data:/var/lib/rabbitmq
+#    environment:
+#      - RABBITMQ_ERLANG_COOKIE=CURIOAPPLICATION
+#      - RABBITMQ_NODENAME:rabbitmq3
+#      - RABBITMQ_CLUSTERED=true
+#      - RABBITMQ_CLUSTER_WITH=rabbit@rabbitmq1
+#      - RABBITMQ_RAM_NODE=true
+#    networks:
+#      - backend
+#
+#  apollo-quick-start:
+#    image: nobodyiam/apollo-quick-start
+#    container_name: apollo-quick-start
+#    depends_on:
+#      - apollo-db
+#    ports:
+#      - "8080:8080"
+#      - "8070:8070"
+#    links:
+#      - apollo-db
+#  apollo-db:
+#    image: mysql:5.7
+#    container_name: apollo-db
+#    environment:
+#      TZ: Asia/Shanghai
+#      MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+#    depends_on:
+#      - apollo-dbdata
+#    ports:
+#      - "13306:3306"
+#    volumes:
+#      - ./apollo/sql:/docker-entrypoint-initdb.d
+#      - apollo-dbdata:/var/lib/mysql
+#  apollo-dbdata:
+#    image: alpine:latest
+#    container_name: apollo-dbdata
+#    volumes:
+#      - apollo-dbdata:/var/lib/mysql
+#volumes:
+#  apollo-dbdata:
