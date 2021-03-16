@@ -26,6 +26,7 @@ RUN docker-php-ext-install -j$(nproc) mysqli
 RUN docker-php-ext-install pdo_mysql \
     # Install the PHP pdo_pgsql extention
     && docker-php-ext-install pdo_pgsql \
+    && docker-php-ext-install mysqli \
     # Install the PHP gd library
     && docker-php-ext-configure gd \
     --with-jpeg-dir=/usr/lib \
@@ -130,6 +131,32 @@ RUN if [ ${INSTALL_OPCACHE} = true ]; then \
     ;fi
 
 COPY ./opcache.ini /usr/local/etc/php/conf.d/opcache.ini
+
+###########################################################################
+# IMAP:
+###########################################################################
+
+ARG INSTALL_IMAP=false
+
+RUN if [ ${INSTALL_IMAP} = true ]; then \
+    apt-get update && \
+    apt-get install -y --no-install-recommends libc-client-dev libkrb5-dev && \
+    rm -r /var/lib/apt/lists/* && \
+    docker-php-ext-configure imap --with-kerberos --with-imap-ssl && \
+    docker-php-ext-install -j$(nproc) imap \
+    ;fi
+
+###########################################################################
+# XDEBUG:
+###########################################################################
+
+ARG INSTALL_XDEBUG=false
+
+RUN if [ ${INSTALL_XDEBUG} = true ]; then \
+    pecl install xdebug && docker-php-ext-enable xdebug \
+    ;fi
+
+COPY ./xdebug.ini /usr/local/etc/php/conf.d/xdebug.ini
 
 ###########################################################################
 # Check PHP version:
