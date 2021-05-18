@@ -20,7 +20,6 @@ RUN apt-get update && \
     libmcrypt-dev \
     && rm -rf /var/lib/apt/lists/*
 
-RUN docker-php-ext-install -j$(nproc) mysqli
 
 # Install the PHP pdo_mysql extention
 RUN docker-php-ext-install pdo_mysql \
@@ -33,6 +32,7 @@ RUN docker-php-ext-install pdo_mysql \
     --with-freetype-dir=/usr/include/freetype2 && \
     docker-php-ext-install gd \
     bcmath
+
 
 # always run apt update when start and after add new source list, then clean up at end.
 RUN set -xe; \
@@ -157,6 +157,12 @@ RUN if [ ${INSTALL_XDEBUG} = true ]; then \
     ;fi
 
 COPY ./xdebug.ini /usr/local/etc/php/conf.d/xdebug.ini
+
+###########################################################################
+# mcrypt:
+###########################################################################
+
+RUN pecl install mcrypt && docker-php-ext-enable mcrypt
 
 ###########################################################################
 # Check PHP version:
