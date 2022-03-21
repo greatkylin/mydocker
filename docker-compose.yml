@@ -22,7 +22,7 @@ services:
       - backend
     links:
       - phpfpm
-      - swoole
+#      - swoole
 
   ### MySql ##############################################
   mysql:
@@ -32,8 +32,9 @@ services:
         - MYSQL_VERSION=${MYSQL_VERSION}
     environment:
       - MYSQL_DATABASE=${MYSQL_DATABASE}
-      - MYSQL_USER=${MYSQL_USER}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+#      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_ROOT_USER=${MYSQL_ROOT_USER}
+#      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
       - TZ=${WORKSPACE_TIMEZONE}
     volumes:
@@ -121,23 +122,23 @@ services:
       - mysql
       - redis-master
 
-  ### Swoole ##############################################
-  swoole:
-    build: ./swoole
-    ports:
-      - 1215:1215
-      - 9020:9000
-    working_dir: /var/www
-    volumes:
-      - ${NGINX_SITES_PATH}:/var/www
-      - ./swoole/php.d:/etc/php.d/
-    stdin_open: true
-    tty: true
-    networks:
-      - backend
-    links:
-      - mysql
-      - redis-master
+#  ### Swoole ##############################################
+#  swoole:
+#    build: ./swoole
+#    ports:
+#      - 1215:1215
+#      - 9020:9000
+#    working_dir: /var/www
+#    volumes:
+#      - ${NGINX_SITES_PATH}:/var/www
+#      - ./swoole/php.d:/etc/php.d/
+#    stdin_open: true
+#    tty: true
+#    networks:
+#      - backend
+#    links:
+#      - mysql
+#      - redis-master
 #    command: php artisan swoole:http start
 
 #  ### Kafka ##############################################
